@@ -188,16 +188,23 @@ function chamarGemini_(apiKey, sistema, usuario, pedirJson) {
     generationConfig: geracao,
   };
 
-  const res = UrlFetchApp.fetch(url, {
-    method: 'post',
-    contentType: 'application/json',
-    headers: { 'x-goog-api-key': apiKey },
-    payload: JSON.stringify(payload),
-    muteHttpExceptions: true,
-  });
-
-  if (res.getResponseCode() !== 200) {
-    throw new Error('Gemini HTTP ' + res.getResponseCode() + ': ' + res.getContentText());
+  // Tenta de novo em erros temporários (429 e 503), com espera crescente.
+  let res = null;
+  for (let tentativa = 1; tentativa <= 3; tentativa++) {
+    res = UrlFetchApp.fetch(url, {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { 'x-goog-api-key': apiKey },
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true,
+    });
+    const codigo = res.getResponseCode();
+    if (codigo === 200) break;
+    if ((codigo === 503 || codigo === 429) && tentativa < 3) {
+      Utilities.sleep(tentativa * 5000);
+      continue;
+    }
+    throw new Error('Gemini HTTP ' + codigo + ': ' + res.getContentText());
   }
   const data = JSON.parse(res.getContentText());
   return data.candidates[0].content.parts.map(function (p) { return p.text; }).join('');
