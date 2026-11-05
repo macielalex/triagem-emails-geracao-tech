@@ -1,0 +1,111 @@
+{
+  "descricao": "Conjunto de 15 e-mails de teste com a classificação esperada. Usado para medir a acurácia do prompt de triagem. Os rótulos esperados foram definidos antes da execução.",
+  "campos_comparados": ["prioridade", "intencao", "resposta_automatica"],
+  "casos": [
+    {
+      "id": 1,
+      "remetente": "ana.souza@exemplo.com",
+      "assunto": "Horário de atendimento",
+      "corpo": "Boa tarde, qual o horário de atendimento de vocês aos sábados?",
+      "esperado": {"prioridade": "baixa", "intencao": "duvida", "resposta_automatica": true}
+    },
+    {
+      "id": 2,
+      "remetente": "carlos.lima@exemplo.com",
+      "assunto": "Cobrança indevida, preciso resolver hoje",
+      "corpo": "Fui cobrado duas vezes no cartão e preciso desse valor hoje para pagar uma conta. Isso é inaceitável.",
+      "esperado": {"prioridade": "alta", "intencao": "reclamacao", "resposta_automatica": false}
+    },
+    {
+      "id": 3,
+      "remetente": "promo@lojaxyz-ofertas.net",
+      "assunto": "GANHE 80% OFF hoje!!!",
+      "corpo": "Clique aqui para resgatar seu cupom exclusivo. Oferta válida só nas próximas 2 horas.",
+      "esperado": {"prioridade": "baixa", "intencao": "spam", "resposta_automatica": false}
+    },
+    {
+      "id": 4,
+      "remetente": "marcia.r@exemplo.com",
+      "assunto": "Parabéns pelo atendimento",
+      "corpo": "Gostaria de parabenizar a atendente Juliana pela ajuda de ontem. Resolveu tudo rapidamente.",
+      "esperado": {"prioridade": "baixa", "intencao": "elogio", "resposta_automatica": true}
+    },
+    {
+      "id": 5,
+      "remetente": "pedro.alves@exemplo.com",
+      "assunto": "Quero cancelar meu plano",
+      "corpo": "Não quero mais o serviço. Como faço para cancelar a assinatura e receber o reembolso do mês?",
+      "esperado": {"prioridade": "media", "intencao": "cancelamento", "resposta_automatica": false}
+    },
+    {
+      "id": 6,
+      "remetente": "lucia.f@exemplo.com",
+      "assunto": "Agendar visita técnica",
+      "corpo": "Preciso agendar uma visita técnica na próxima semana, de preferência na terça de manhã. Podem confirmar?",
+      "esperado": {"prioridade": "baixa", "intencao": "agendamento", "resposta_automatica": true}
+    },
+    {
+      "id": 7,
+      "remetente": "rh-novidades@empresa-parceira.com",
+      "assunto": "Newsletter mensal de outubro",
+      "corpo": "Confira as novidades do mês: novos parceiros, dicas de bem-estar e o calendário de eventos.",
+      "esperado": {"prioridade": "baixa", "intencao": "outro", "resposta_automatica": false}
+    },
+    {
+      "id": 8,
+      "remetente": "joao.m@exemplo.com",
+      "assunto": "Sistema fora do ar",
+      "corpo": "O aplicativo não abre desde esta manhã e eu não consigo acessar meu benefício. Preciso disso até o fim do dia, por favor.",
+      "esperado": {"prioridade": "alta", "intencao": "reclamacao", "resposta_automatica": false}
+    },
+    {
+      "id": 9,
+      "remetente": "beatriz.c@exemplo.com",
+      "assunto": "Dúvida sobre a fatura",
+      "corpo": "Olá, recebi a fatura de setembro e não entendi o item 'taxa administrativa'. O que é isso?",
+      "esperado": {"prioridade": "media", "intencao": "duvida", "resposta_automatica": true}
+    },
+    {
+      "id": 10,
+      "remetente": "suporte-urgente@cliente-grande.com",
+      "assunto": "URGENTE: pagamento vencido e bloqueio de contrato",
+      "corpo": "Nosso contrato será suspenso amanhã se o pagamento não for regularizado. Precisamos de uma resposta imediata do gerente.",
+      "esperado": {"prioridade": "alta", "intencao": "reclamacao", "resposta_automatica": false}
+    },
+    {
+      "id": 11,
+      "remetente": "eduardo.n@exemplo.com",
+      "assunto": "Oi",
+      "corpo": "Tudo bem? Queria saber se vocês fazem parceria com escolas.",
+      "esperado": {"prioridade": "baixa", "intencao": "duvida", "resposta_automatica": true}
+    },
+    {
+      "id": 12,
+      "remetente": "seguranca-banco@verificacao-conta.xyz",
+      "assunto": "Sua conta será bloqueada",
+      "corpo": "Detectamos atividade suspeita. Clique no link e informe sua senha para desbloquear sua conta em 24 horas.",
+      "esperado": {"prioridade": "baixa", "intencao": "spam", "resposta_automatica": false}
+    },
+    {
+      "id": 13,
+      "remetente": "fernanda.g@exemplo.com",
+      "assunto": "Reembolso ainda não caiu",
+      "corpo": "Solicitei o reembolso há 15 dias e até agora nada. Já é a terceira vez que escrevo.",
+      "esperado": {"prioridade": "alta", "intencao": "reclamacao", "resposta_automatica": false}
+    },
+    {
+      "id": 14,
+      "remetente": "gustavo.p@exemplo.com",
+      "assunto": "Obrigado",
+      "corpo": "Só passando para agradecer. O atendimento foi excelente.",
+      "esperado": {"prioridade": "baixa", "intencao": "elogio", "resposta_automatica": true}
+    },
+    {
+      "id": 15,
+      "remetente": "helena.t@exemplo.com",
+      "assunto": "Sugestão de melhoria",
+      "corpo": "Seria útil se o app mostrasse o histórico de atendimentos. Fica como sugestão.",
+      "esperado": {"prioridade": "baixa", "intencao": "outro", "resposta_automatica": false}
+    }
+  ]
+}
