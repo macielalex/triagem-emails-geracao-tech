@@ -14,7 +14,7 @@
  */
 
 const CONFIG = {
-  MODEL: 'gemini-2.5-flash',
+  MODEL: 'gemini-3.8-flash',
   LABEL_PROCESSADO: 'triagem-processado',
   LABEL_URGENTE: 'triagem-urgente',
   SHEET_NAME: 'Triagem',
