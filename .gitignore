@@ -1,0 +1,5 @@
+# Credenciais nunca entram no repositório
+.env
+.clasprc.json
+*.log
+.DS_Store
