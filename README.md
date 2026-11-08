@@ -37,7 +37,7 @@ Resumo:
 
 Decisões de engenharia de prompt:
 
-- **Saída em JSON com schema fixo**, pedida com `responseMimeType: application/json`, para o código conseguir gravar os campos no Sheets sem interpretação de texto livre.
+- **Saída em JSON com schema fixo**, pedida na instrução do sistema e validada pelo código (extração do objeto JSON e checagem do campo `prioridade`), para gravar os campos no Sheets sem interpretação de texto livre.
 - **Regras explícitas de decisão** (ex.: reclamações nunca recebem resposta automática) escritas no prompt e também reforçadas no código, para não depender só do modelo.
 - **Corpo do e-mail entre delimitadores** (`<<<` e `>>>`) e instrução para ignorar comandos dentro do texto, como defesa contra injeção de instruções.
 - **Prompt 2 sem invenção de dados:** não cita preços, prazos ou políticas. Quando não sabe, promete retorno da equipe.
