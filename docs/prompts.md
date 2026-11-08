@@ -175,6 +175,6 @@ Equipe de Atendimento
 ## 3. Salvaguardas
 
 - **Injeção de instruções:** o corpo do e-mail fica entre delimitadores e o sistema manda ignorar instruções contidas nele.
-- **Saída estruturada:** o Claude recebe a instrução de responder somente com JSON, e o código extrai o objeto e valida o campo `prioridade` antes de gravar.
+- **Saída estruturada:** o Gemini é chamado com `responseMimeType: application/json`, e o código valida o campo `prioridade` antes de gravar.
 - **Resposta automática restrita:** o código só envia resposta se a classificação e as regras de intenção baterem. Mesmo que o modelo marque `resposta_automatica: true` para uma reclamação, a regra em código bloqueia o envio.
 - **Sem invenção:** o prompt 2 proíbe preços, prazos e políticas. Quando não sabe, promete retorno da equipe.

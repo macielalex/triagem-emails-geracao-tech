@@ -29,7 +29,7 @@ Antes de gravar:
 
 ## Cena 3 – Arquitetura (0:50 a 1:30)
 
-**Fala:** "O gatilho do Apps Script roda a cada 5 minutos. Ele busca threads novas, envia cada uma para o Claude com o prompt de triagem, grava o resultado na planilha e, se for elegível, gera e envia a resposta com um segundo prompt."
+**Fala:** "O gatilho do Apps Script roda a cada 5 minutos. Ele busca threads novas, envia cada uma para o Gemini com o prompt de triagem, grava o resultado na planilha e, se for elegível, gera e envia a resposta com um segundo prompt."
 
 **Tela:** diagrama Mermaid do README, renderizado no GitHub. Mostre o trecho da seção 3.
 
@@ -73,7 +73,7 @@ Antes de gravar:
 
 ## Cena 8 – Controle e erros (3:50 a 4:15)
 
-**Fala:** "Cada thread é marcada como processada, então não é reprocessada. Se a API retornar erro temporário, o script tenta de novo. Se uma thread falhar, ela fica de fora da marcação e será tentada na próxima execução."
+**Fala:** "Cada thread é marcada como processada, então não é reprocessada. Se o Gemini retornar erro temporário, o script tenta de novo. Se uma thread falhar, ela fica de fora da marcação e será tentada na próxima execução."
 
 **Tela:** aba de Execuções com um log de sucesso. Se possível, mostre também um log de erro tratado.
 

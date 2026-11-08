@@ -3,20 +3,18 @@
  * Projeto Final – Geração Tech IA Generativa (FIEC/IEL-CE)
  *
  * Propriedades do script necessárias (Configurações do projeto > Propriedades do script):
- *   ANTHROPIC_API_KEY – chave gerada no console da Anthropic
- *   SHEET_ID          – ID da planilha (trecho entre /d/ e /edit na URL)
+ *   GEMINI_API_KEY  – chave gerada no Google AI Studio
+ *   SHEET_ID        – ID da planilha (trecho entre /d/ e /edit na URL)
  *
  * Fluxo: gatilho a cada 5 min -> lê threads novas da caixa de entrada
- *   -> classificação via Claude (prompt 1, JSON)
+ *   -> classificação via Gemini (prompt 1, JSON)
  *   -> grava linha na aba "Triagem" do Google Sheets
  *   -> se elegível, gera e envia resposta (prompt 2)
  *   -> etiqueta a thread como processada
  */
 
 const CONFIG = {
-  MODEL: 'claude-haiku-5-5',
-  ANTHROPIC_VERSION: '2023-06-01',
-  MAX_TOKENS: 1024,
+  MODEL: 'gemini-3.8-flash',
   LABEL_PROCESSADO: 'triagem-processado',
   LABEL_URGENTE: 'triagem-urgente',
   SHEET_NAME: 'Triagem',
@@ -94,7 +92,7 @@ function setup() {
 // ---------------------------------------------------------------------------
 
 function processarEmails() {
-  const apiKey = obterPropriedade_('ANTHROPIC_API_KEY');
+  const apiKey = obterPropriedade_('GEMINI_API_KEY');
   const sheetId = obterPropriedade_('SHEET_ID');
   const aba = SpreadsheetApp.openById(sheetId).getSheetByName(CONFIG.SHEET_NAME);
   if (!aba) throw new Error('Aba não encontrada na planilha: ' + CONFIG.SHEET_NAME);
@@ -164,66 +162,52 @@ function processarEmails() {
 }
 
 // ---------------------------------------------------------------------------
-// CHAMADAS AO CLAUDE
+// CHAMADAS AO GEMINI
 // ---------------------------------------------------------------------------
 
 function classificar_(apiKey, remetente, assunto, corpo) {
-  const texto = chamarClaude_(apiKey, PROMPT_TRIAGEM_SISTEMA, PROMPT_TRIAGEM_USUARIO(remetente, assunto, corpo), true);
-  const dados = extrairJson_(texto);
+  const texto = chamarGemini_(apiKey, PROMPT_TRIAGEM_SISTEMA, PROMPT_TRIAGEM_USUARIO(remetente, assunto, corpo), true);
+  const dados = JSON.parse(texto);
   const prioridades = ['alta', 'media', 'baixa'];
   if (prioridades.indexOf(dados.prioridade) === -1) throw new Error('Prioridade inválida: ' + dados.prioridade);
   return dados;
 }
 
 function gerarResposta_(apiKey, assunto, intencao, corpo) {
-  return chamarClaude_(apiKey, PROMPT_RESPOSTA_SISTEMA, PROMPT_RESPOSTA_USUARIO(assunto, intencao, corpo), false).trim();
+  return chamarGemini_(apiKey, PROMPT_RESPOSTA_SISTEMA, PROMPT_RESPOSTA_USUARIO(assunto, intencao, corpo), false).trim();
 }
 
-function chamarClaude_(apiKey, sistema, usuario, pedirJson) {
-  const url = 'https://api.anthropic.com/v1/messages';
+function chamarGemini_(apiKey, sistema, usuario, pedirJson) {
+  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + CONFIG.MODEL + ':generateContent';
+  const geracao = { temperature: 0.2 };
+  if (pedirJson) geracao.responseMimeType = 'application/json';
+
   const payload = {
-    model: CONFIG.MODEL,
-    max_tokens: CONFIG.MAX_TOKENS,
-    temperature: 0.2,
-    system: pedirJson ? sistema + '\nResponda somente com o JSON, sem cercas de código.' : sistema,
-    messages: [{ role: 'user', content: usuario }],
+    systemInstruction: { parts: [{ text: sistema }] },
+    contents: [{ role: 'user', parts: [{ text: usuario }] }],
+    generationConfig: geracao,
   };
 
-  // Tenta de novo em erros temporários (429, 503 e 529 = sobrecarga), com espera crescente.
+  // Tenta de novo em erros temporários (429 e 503), com espera crescente.
   let res = null;
   for (let tentativa = 1; tentativa <= 3; tentativa++) {
     res = UrlFetchApp.fetch(url, {
       method: 'post',
       contentType: 'application/json',
-      headers: {
-        'x-api-key': apiKey,
-        'anthropic-version': CONFIG.ANTHROPIC_VERSION,
-      },
+      headers: { 'x-goog-api-key': apiKey },
       payload: JSON.stringify(payload),
       muteHttpExceptions: true,
     });
     const codigo = res.getResponseCode();
     if (codigo === 200) break;
-    if ([429, 503, 529].indexOf(codigo) !== -1 && tentativa < 3) {
+    if ((codigo === 503 || codigo === 429) && tentativa < 3) {
       Utilities.sleep(tentativa * 5000);
       continue;
     }
-    throw new Error('Claude HTTP ' + codigo + ': ' + res.getContentText());
+    throw new Error('Gemini HTTP ' + codigo + ': ' + res.getContentText());
   }
-
   const data = JSON.parse(res.getContentText());
-  return data.content
-    .filter(function (bloco) { return bloco.type === 'text'; })
-    .map(function (bloco) { return bloco.text; })
-    .join('');
-}
-
-/** Extrai o primeiro objeto JSON do texto, mesmo se vier com cercas de código. */
-function extrairJson_(texto) {
-  const inicio = texto.indexOf('{');
-  const fim = texto.lastIndexOf('}');
-  if (inicio === -1 || fim === -1) throw new Error('Resposta sem JSON: ' + texto);
-  return JSON.parse(texto.substring(inicio, fim + 1));
+  return data.candidates[0].content.parts.map(function (p) { return p.text; }).join('');
 }
 
 // ---------------------------------------------------------------------------
@@ -242,7 +226,7 @@ function obterOuCriarMarcador_(nome) {
 
 /** Teste manual: classifica um texto sem enviar nada nem gravar na planilha. */
 function testarClassificacao() {
-  const apiKey = obterPropriedade_('ANTHROPIC_API_KEY');
+  const apiKey = obterPropriedade_('GEMINI_API_KEY');
   const resultado = classificar_(
     apiKey,
     'cliente@exemplo.com',
@@ -250,4 +234,204 @@ function testarClassificacao() {
     'Bom dia, desde ontem o app não me deixa entrar. Preciso usar hoje na farmácia. Podem me ajudar?'
   );
   Logger.log(JSON.stringify(resultado, null, 2));
+}
+
+// ---------------------------------------------------------------------------
+// TESTE EM LOTE: 15 casos de docs/dataset-testes.json
+// ---------------------------------------------------------------------------
+const CASOS_TESTE = [
+  {
+    "id": 1,
+    "remetente": "ana.souza@exemplo.com",
+    "assunto": "Horário de atendimento",
+    "corpo": "Boa tarde, qual o horário de atendimento de vocês aos sábados?",
+    "esperado": {
+      "prioridade": "baixa",
+      "intencao": "duvida",
+      "resposta_automatica": true
+    }
+  },
+  {
+    "id": 2,
+    "remetente": "carlos.lima@exemplo.com",
+    "assunto": "Cobrança indevida, preciso resolver hoje",
+    "corpo": "Fui cobrado duas vezes no cartão e preciso desse valor hoje para pagar uma conta. Isso é inaceitável.",
+    "esperado": {
+      "prioridade": "alta",
+      "intencao": "reclamacao",
+      "resposta_automatica": false
+    }
+  },
+  {
+    "id": 3,
+    "remetente": "promo@lojaxyz-ofertas.net",
+    "assunto": "GANHE 80% OFF hoje!!!",
+    "corpo": "Clique aqui para resgatar seu cupom exclusivo. Oferta válida só nas próximas 2 horas.",
+    "esperado": {
+      "prioridade": "baixa",
+      "intencao": "spam",
+      "resposta_automatica": false
+    }
+  },
+  {
+    "id": 4,
+    "remetente": "marcia.r@exemplo.com",
+    "assunto": "Parabéns pelo atendimento",
+    "corpo": "Gostaria de parabenizar a atendente Juliana pela ajuda de ontem. Resolveu tudo rapidamente.",
+    "esperado": {
+      "prioridade": "baixa",
+      "intencao": "elogio",
+      "resposta_automatica": true
+    }
+  },
+  {
+    "id": 5,
+    "remetente": "pedro.alves@exemplo.com",
+    "assunto": "Quero cancelar meu plano",
+    "corpo": "Não quero mais o serviço. Como faço para cancelar a assinatura e receber o reembolso do mês?",
+    "esperado": {
+      "prioridade": "media",
+      "intencao": "cancelamento",
+      "resposta_automatica": false
+    }
+  },
+  {
+    "id": 6,
+    "remetente": "lucia.f@exemplo.com",
+    "assunto": "Agendar visita técnica",
+    "corpo": "Preciso agendar uma visita técnica na próxima semana, de preferência na terça de manhã. Podem confirmar?",
+    "esperado": {
+      "prioridade": "baixa",
+      "intencao": "agendamento",
+      "resposta_automatica": true
+    }
+  },
+  {
+    "id": 7,
+    "remetente": "rh-novidades@empresa-parceira.com",
+    "assunto": "Newsletter mensal de outubro",
+    "corpo": "Confira as novidades do mês: novos parceiros, dicas de bem-estar e o calendário de eventos.",
+    "esperado": {
+      "prioridade": "baixa",
+      "intencao": "outro",
+      "resposta_automatica": false
+    }
+  },
+  {
+    "id": 8,
+    "remetente": "joao.m@exemplo.com",
+    "assunto": "Sistema fora do ar",
+    "corpo": "O aplicativo não abre desde esta manhã e eu não consigo acessar meu benefício. Preciso disso até o fim do dia, por favor.",
+    "esperado": {
+      "prioridade": "alta",
+      "intencao": "reclamacao",
+      "resposta_automatica": false
+    }
+  },
+  {
+    "id": 9,
+    "remetente": "beatriz.c@exemplo.com",
+    "assunto": "Dúvida sobre a fatura",
+    "corpo": "Olá, recebi a fatura de setembro e não entendi o item 'taxa administrativa'. O que é isso?",
+    "esperado": {
+      "prioridade": "media",
+      "intencao": "duvida",
+      "resposta_automatica": true
+    }
+  },
+  {
+    "id": 10,
+    "remetente": "suporte-urgente@cliente-grande.com",
+    "assunto": "URGENTE: pagamento vencido e bloqueio de contrato",
+    "corpo": "Nosso contrato será suspenso amanhã se o pagamento não for regularizado. Precisamos de uma resposta imediata do gerente.",
+    "esperado": {
+      "prioridade": "alta",
+      "intencao": "reclamacao",
+      "resposta_automatica": false
+    }
+  },
+  {
+    "id": 11,
+    "remetente": "eduardo.n@exemplo.com",
+    "assunto": "Oi",
+    "corpo": "Tudo bem? Queria saber se vocês fazem parceria com escolas.",
+    "esperado": {
+      "prioridade": "baixa",
+      "intencao": "duvida",
+      "resposta_automatica": true
+    }
+  },
+  {
+    "id": 12,
+    "remetente": "seguranca-banco@verificacao-conta.xyz",
+    "assunto": "Sua conta será bloqueada",
+    "corpo": "Detectamos atividade suspeita. Clique no link e informe sua senha para desbloquear sua conta em 24 horas.",
+    "esperado": {
+      "prioridade": "baixa",
+      "intencao": "spam",
+      "resposta_automatica": false
+    }
+  },
+  {
+    "id": 13,
+    "remetente": "fernanda.g@exemplo.com",
+    "assunto": "Reembolso ainda não caiu",
+    "corpo": "Solicitei o reembolso há 15 dias e até agora nada. Já é a terceira vez que escrevo.",
+    "esperado": {
+      "prioridade": "alta",
+      "intencao": "reclamacao",
+      "resposta_automatica": false
+    }
+  },
+  {
+    "id": 14,
+    "remetente": "gustavo.p@exemplo.com",
+    "assunto": "Obrigado",
+    "corpo": "Só passando para agradecer. O atendimento foi excelente.",
+    "esperado": {
+      "prioridade": "baixa",
+      "intencao": "elogio",
+      "resposta_automatica": true
+    }
+  },
+  {
+    "id": 15,
+    "remetente": "helena.t@exemplo.com",
+    "assunto": "Sugestão de melhoria",
+    "corpo": "Seria útil se o app mostrasse o histórico de atendimentos. Fica como sugestão.",
+    "esperado": {
+      "prioridade": "baixa",
+      "intencao": "outro",
+      "resposta_automatica": false
+    }
+  }
+];
+
+/** Roda os 15 casos, compara com o esperado e registra a acurácia no log. Não envia nem grava nada. */
+function testarBateria() {
+  const apiKey = obterPropriedade_('GEMINI_API_KEY');
+  const acertos = { prioridade: 0, intencao: 0, resposta_automatica: 0, todos: 0 };
+  CASOS_TESTE.forEach(function (c) {
+    try {
+      const r = classificar_(apiKey, c.remetente, c.assunto, c.corpo);
+      const okP = r.prioridade === c.esperado.prioridade;
+      const okI = r.intencao === c.esperado.intencao;
+      const okR = r.resposta_automatica === c.esperado.resposta_automatica;
+      if (okP) acertos.prioridade++;
+      if (okI) acertos.intencao++;
+      if (okR) acertos.resposta_automatica++;
+      if (okP && okI && okR) acertos.todos++;
+      Logger.log('Caso ' + c.id + ' | prioridade ' + r.prioridade + (okP ? ' ok' : ' ERRADO (esperado ' + c.esperado.prioridade + ')') +
+        ' | intencao ' + r.intencao + (okI ? ' ok' : ' ERRADO (esperado ' + c.esperado.intencao + ')') +
+        ' | resposta ' + r.resposta_automatica + (okR ? ' ok' : ' ERRADO'));
+    } catch (e) {
+      Logger.log('Caso ' + c.id + ' | ERRO: ' + e.message);
+    }
+  });
+  const n = CASOS_TESTE.length;
+  Logger.log('--- ACURACIA (n=' + n + ') ---');
+  Logger.log('prioridade: ' + acertos.prioridade + '/' + n);
+  Logger.log('intencao: ' + acertos.intencao + '/' + n);
+  Logger.log('resposta_automatica: ' + acertos.resposta_automatica + '/' + n);
+  Logger.log('todos os campos: ' + acertos.todos + '/' + n);
 }
