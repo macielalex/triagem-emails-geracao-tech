@@ -3,18 +3,20 @@
  * Projeto Final – Geração Tech IA Generativa (FIEC/IEL-CE)
  *
  * Propriedades do script necessárias (Configurações do projeto > Propriedades do script):
- *   GEMINI_API_KEY  – chave gerada no Google AI Studio
- *   SHEET_ID        – ID da planilha (trecho entre /d/ e /edit na URL)
+ *   ANTHROPIC_API_KEY – chave gerada no console da Anthropic
+ *   SHEET_ID          – ID da planilha (trecho entre /d/ e /edit na URL)
  *
  * Fluxo: gatilho a cada 5 min -> lê threads novas da caixa de entrada
- *   -> classificação via Gemini (prompt 1, JSON)
+ *   -> classificação via Claude (prompt 1, JSON)
  *   -> grava linha na aba "Triagem" do Google Sheets
  *   -> se elegível, gera e envia resposta (prompt 2)
  *   -> etiqueta a thread como processada
  */
 
 const CONFIG = {
-  MODEL: 'gemini-3.8-flash',
+  MODEL: 'claude-haiku-5-5',
+  ANTHROPIC_VERSION: '2023-06-01',
+  MAX_TOKENS: 1024,
   LABEL_PROCESSADO: 'triagem-processado',
   LABEL_URGENTE: 'triagem-urgente',
   SHEET_NAME: 'Triagem',
@@ -92,7 +94,7 @@ function setup() {
 // ---------------------------------------------------------------------------
 
 function processarEmails() {
-  const apiKey = obterPropriedade_('GEMINI_API_KEY');
+  const apiKey = obterPropriedade_('ANTHROPIC_API_KEY');
   const sheetId = obterPropriedade_('SHEET_ID');
   const aba = SpreadsheetApp.openById(sheetId).getSheetByName(CONFIG.SHEET_NAME);
   if (!aba) throw new Error('Aba não encontrada na planilha: ' + CONFIG.SHEET_NAME);
@@ -162,52 +164,66 @@ function processarEmails() {
 }
 
 // ---------------------------------------------------------------------------
-// CHAMADAS AO GEMINI
+// CHAMADAS AO CLAUDE
 // ---------------------------------------------------------------------------
 
 function classificar_(apiKey, remetente, assunto, corpo) {
-  const texto = chamarGemini_(apiKey, PROMPT_TRIAGEM_SISTEMA, PROMPT_TRIAGEM_USUARIO(remetente, assunto, corpo), true);
-  const dados = JSON.parse(texto);
+  const texto = chamarClaude_(apiKey, PROMPT_TRIAGEM_SISTEMA, PROMPT_TRIAGEM_USUARIO(remetente, assunto, corpo), true);
+  const dados = extrairJson_(texto);
   const prioridades = ['alta', 'media', 'baixa'];
   if (prioridades.indexOf(dados.prioridade) === -1) throw new Error('Prioridade inválida: ' + dados.prioridade);
   return dados;
 }
 
 function gerarResposta_(apiKey, assunto, intencao, corpo) {
-  return chamarGemini_(apiKey, PROMPT_RESPOSTA_SISTEMA, PROMPT_RESPOSTA_USUARIO(assunto, intencao, corpo), false).trim();
+  return chamarClaude_(apiKey, PROMPT_RESPOSTA_SISTEMA, PROMPT_RESPOSTA_USUARIO(assunto, intencao, corpo), false).trim();
 }
 
-function chamarGemini_(apiKey, sistema, usuario, pedirJson) {
-  const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + CONFIG.MODEL + ':generateContent';
-  const geracao = { temperature: 0.2 };
-  if (pedirJson) geracao.responseMimeType = 'application/json';
-
+function chamarClaude_(apiKey, sistema, usuario, pedirJson) {
+  const url = 'https://api.anthropic.com/v1/messages';
   const payload = {
-    systemInstruction: { parts: [{ text: sistema }] },
-    contents: [{ role: 'user', parts: [{ text: usuario }] }],
-    generationConfig: geracao,
+    model: CONFIG.MODEL,
+    max_tokens: CONFIG.MAX_TOKENS,
+    temperature: 0.2,
+    system: pedirJson ? sistema + '\nResponda somente com o JSON, sem cercas de código.' : sistema,
+    messages: [{ role: 'user', content: usuario }],
   };
 
-  // Tenta de novo em erros temporários (429 e 503), com espera crescente.
+  // Tenta de novo em erros temporários (429, 503 e 529 = sobrecarga), com espera crescente.
   let res = null;
   for (let tentativa = 1; tentativa <= 3; tentativa++) {
     res = UrlFetchApp.fetch(url, {
       method: 'post',
       contentType: 'application/json',
-      headers: { 'x-goog-api-key': apiKey },
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': CONFIG.ANTHROPIC_VERSION,
+      },
       payload: JSON.stringify(payload),
       muteHttpExceptions: true,
     });
     const codigo = res.getResponseCode();
     if (codigo === 200) break;
-    if ((codigo === 503 || codigo === 429) && tentativa < 3) {
+    if ([429, 503, 529].indexOf(codigo) !== -1 && tentativa < 3) {
       Utilities.sleep(tentativa * 5000);
       continue;
     }
-    throw new Error('Gemini HTTP ' + codigo + ': ' + res.getContentText());
+    throw new Error('Claude HTTP ' + codigo + ': ' + res.getContentText());
   }
+
   const data = JSON.parse(res.getContentText());
-  return data.candidates[0].content.parts.map(function (p) { return p.text; }).join('');
+  return data.content
+    .filter(function (bloco) { return bloco.type === 'text'; })
+    .map(function (bloco) { return bloco.text; })
+    .join('');
+}
+
+/** Extrai o primeiro objeto JSON do texto, mesmo se vier com cercas de código. */
+function extrairJson_(texto) {
+  const inicio = texto.indexOf('{');
+  const fim = texto.lastIndexOf('}');
+  if (inicio === -1 || fim === -1) throw new Error('Resposta sem JSON: ' + texto);
+  return JSON.parse(texto.substring(inicio, fim + 1));
 }
 
 // ---------------------------------------------------------------------------
@@ -226,7 +242,7 @@ function obterOuCriarMarcador_(nome) {
 
 /** Teste manual: classifica um texto sem enviar nada nem gravar na planilha. */
 function testarClassificacao() {
-  const apiKey = obterPropriedade_('GEMINI_API_KEY');
+  const apiKey = obterPropriedade_('ANTHROPIC_API_KEY');
   const resultado = classificar_(
     apiKey,
     'cliente@exemplo.com',
