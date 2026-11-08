@@ -435,3 +435,41 @@ function testarBateria() {
   Logger.log('resposta_automatica: ' + acertos.resposta_automatica + '/' + n);
   Logger.log('todos os campos: ' + acertos.todos + '/' + n);
 }
+
+// ---------------------------------------------------------------------------
+// TESTE EM LOTE POR PARTES (cada parte roda em uma execução, dentro do limite de 6 min)
+// ---------------------------------------------------------------------------
+
+/** Roda os casos de índice inicio (inclusive) até fim (exclusive) e registra a acurácia parcial. */
+function testarIntervalo_(inicio, fim) {
+  const apiKey = obterPropriedade_('GEMINI_API_KEY');
+  const casos = CASOS_TESTE.slice(inicio, fim);
+  const acertos = { prioridade: 0, intencao: 0, resposta_automatica: 0, todos: 0 };
+  casos.forEach(function (c) {
+    try {
+      const r = classificar_(apiKey, c.remetente, c.assunto, c.corpo);
+      const okP = r.prioridade === c.esperado.prioridade;
+      const okI = r.intencao === c.esperado.intencao;
+      const okR = r.resposta_automatica === c.esperado.resposta_automatica;
+      if (okP) acertos.prioridade++;
+      if (okI) acertos.intencao++;
+      if (okR) acertos.resposta_automatica++;
+      if (okP && okI && okR) acertos.todos++;
+      Logger.log('Caso ' + c.id + ' | prioridade ' + r.prioridade + (okP ? ' ok' : ' ERRADO (esperado ' + c.esperado.prioridade + ')') +
+        ' | intencao ' + r.intencao + (okI ? ' ok' : ' ERRADO (esperado ' + c.esperado.intencao + ')') +
+        ' | resposta ' + r.resposta_automatica + (okR ? ' ok' : ' ERRADO'));
+    } catch (e) {
+      Logger.log('Caso ' + c.id + ' | ERRO: ' + e.message);
+    }
+  });
+  const n = casos.length;
+  Logger.log('--- ACURACIA PARCIAL (casos ' + (inicio + 1) + ' a ' + (inicio + n) + ', n=' + n + ') ---');
+  Logger.log('prioridade: ' + acertos.prioridade + '/' + n);
+  Logger.log('intencao: ' + acertos.intencao + '/' + n);
+  Logger.log('resposta_automatica: ' + acertos.resposta_automatica + '/' + n);
+  Logger.log('todos os campos: ' + acertos.todos + '/' + n);
+}
+
+function testarBateriaParte1() { testarIntervalo_(0, 5); }
+function testarBateriaParte2() { testarIntervalo_(5, 10); }
+function testarBateriaParte3() { testarIntervalo_(10, 15); }
